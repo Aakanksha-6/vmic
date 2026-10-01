@@ -42,7 +42,7 @@ In traditional classrooms, passing around physical handheld microphones is cumbe
  ┌────────────────────────┐      ┌────────────────────────┐
  │   FASTAPI BACKEND      │◀────▶│    NEXT.JS FRONTEND    │
  │ (Python Socket.IO)     │      │   (Host Web Audio Engine)│
- │   Port 8000 (HTTP)     │      │   Port 3000 (HTTPS)    │
+ │   Port 8001 (HTTPS)    │      │   Port 3000 (HTTPS)    │
  └────────────────────────┘      └───────────┬────────────┘
                                              │
                                    Web Audio Destination
@@ -144,7 +144,7 @@ Run the built-in certificate generator script inside the `frontend` directory:
 ```bash
 node scripts/generate-cert.js
 ```
-*This creates `certificates/server.key` and `certificates/server.crt` configured for `localhost`, `192.168.137.1`, `10.110.120.201`, and `0.0.0.0`.*
+*This creates `certificates/server.key` and `certificates/server.crt` configured for `localhost`, `192.168.137.1`, `10.95.210.231`, and `0.0.0.0`.*
 
 ---
 
@@ -153,9 +153,9 @@ node scripts/generate-cert.js
 ### Step 1: Start the Backend Server
 From the `backend` directory (with virtualenv activated):
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload --ssl-keyfile ../frontend/certificates/server.key --ssl-certfile ../frontend/certificates/server.crt
 ```
-*The backend will automatically start listening on `http://0.0.0.0:8000` and create the default room (`DEMO01`).*
+*The backend will automatically start listening on `https://0.0.0.0:8001` and create the default room (`DEMO01`).*
 
 ### Step 2: Start the Frontend Server
 From the `frontend` directory:

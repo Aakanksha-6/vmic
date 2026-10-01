@@ -2,13 +2,13 @@
  * VMIC Network Configuration
  *
  * Your laptop has multiple network interfaces:
- *   10.110.120.201   — Wi-Fi Router (GGGGG)
+ *   10.95.210.231    — Wi-Fi
  *   192.168.137.1    — Mobile Hotspot
  *   192.168.56.1     — VirtualBox (ignore)
  */
 
 export const KNOWN_LAN_IPS = [
-  "10.104.12.231",  // Wi-Fi
+  "10.95.210.231",  // Wi-Fi
 ];
 
 export function getSelectedLanIp(): string {
@@ -36,17 +36,14 @@ export function setSelectedLanIp(ip: string): void {
 }
 
 /**
- * Backend always runs on HTTP port 8000.
- * (FastAPI does not need HTTPS for API/Socket.IO calls from the browser —
- *  the browser's secure-context requirement is for getUserMedia, not fetch.)
+ * The backend uses HTTPS so mobile browsers can call it from the secure frontend.
  */
 export function getBackendUrl(): string {
   if (typeof window !== "undefined") {
     const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
-    return `${protocol}//${hostname}:8000`;
+    return `https://${hostname}:8001`;
   }
-  return `https://${getSelectedLanIp()}:8000`;
+  return `https://${getSelectedLanIp()}:8001`;
 }
 
 export function getFrontendUrl(): string {

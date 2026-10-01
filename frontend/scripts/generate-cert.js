@@ -11,14 +11,27 @@ async function generateCerts() {
   const attrs = [{ name: "commonName", value: "VMIC Local Server" }];
 
   const options = {
-    days: 365,
-    altNames: [
-      { type: 2, value: "localhost" },
-      { type: 7, ip: "127.0.0.1" },
-      { type: 7, ip: "192.168.137.1" },
-      { type: 7, ip: "10.110.120.201" },
-      { type: 7, ip: "10.104.12.231" },
-      { type: 7, ip: "0.0.0.0" },
+    notAfterDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+    extensions: [
+      { name: "basicConstraints", cA: false, critical: true },
+      {
+        name: "keyUsage",
+        digitalSignature: true,
+        keyEncipherment: true,
+        critical: true,
+      },
+      { name: "extKeyUsage", serverAuth: true, clientAuth: true },
+      {
+        name: "subjectAltName",
+        altNames: [
+          { type: 2, value: "localhost" },
+          { type: 7, ip: "127.0.0.1" },
+          { type: 7, ip: "192.168.137.1" },
+          { type: 7, ip: "10.110.120.201" },
+          { type: 7, ip: "10.95.210.231" },
+          { type: 7, ip: "0.0.0.0" },
+        ],
+      },
     ],
   };
 

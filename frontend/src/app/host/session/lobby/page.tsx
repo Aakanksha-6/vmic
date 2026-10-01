@@ -180,7 +180,7 @@ export default function LobbyPage() {
                     : "bg-gray-900 text-gray-400 border-gray-800 hover:border-gray-700"
                 }`}
               >
-                {ip} {ip === "10.110.120.201" ? "(Wi-Fi)" : "(Hotspot)"}
+                {ip} {ip === "10.95.210.231" ? "(Wi-Fi)" : "(Hotspot)"}
               </button>
             ))}
           </div>
