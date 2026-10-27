@@ -30,6 +30,12 @@ export class VMICAudioEngine {
 
   private masterGain: GainNode | null = null;
 
+  private recordingDestination: MediaStreamAudioDestinationNode | null = null;
+
+  private mediaRecorder: MediaRecorder | null = null;
+
+  private recordingChunks: Blob[] = [];
+
   private workletLoaded = false;
 
   private speakingMode: "open" | "controlled" = "controlled";
@@ -474,6 +480,92 @@ export class VMICAudioEngine {
       clamped;
 
   }
+
+  async startRecording() {
+    await this.initialize();
+
+    if (!this.audioContext || !this.masterGain) {
+      throw new Error("The audio engine is not ready to record.");
+    }
+
+    if (typeof MediaRecorder === "undefined") {
+      throw new Error("Audio recording is not supported by this browser.");
+    }
+
+    if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
+      throw new Error("A recording is already in progress.");
+    }
+    const destination = this.audioContext.createMediaStreamDestination();
+    this.masterGain.connect(destination);
+    this.recordingDestination = destination;
+    this.recordingChunks = [];
+
+    try {
+      const supportedMimeType = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/ogg;codecs=opus",
+      ].find((mimeType) => MediaRecorder.isTypeSupported(mimeType));
+      const recorder = supportedMimeType
+        ? new MediaRecorder(destination.stream, { mimeType: supportedMimeType })
+        : new MediaRecorder(destination.stream);
+      this.mediaRecorder = recorder;
+
+      recorder.addEventListener("dataavailable", (event) => {
+        if (event.data.size > 0) {
+          this.recordingChunks.push(event.data);
+        }
+      });
+      recorder.start();
+    } catch (error) {
+      this.cleanupRecording();
+      throw error;
+    }
+  }
+
+  stopRecording(): Promise<Blob> {
+    const recorder = this.mediaRecorder;
+    if (!recorder || recorder.state === "inactive") {
+      throw new Error("There is no active recording to stop.");
+    }
+
+    return new Promise((resolve, reject) => {
+      recorder.addEventListener(
+        "stop",
+        () => {
+          const recording = new Blob(this.recordingChunks, {
+            type: recorder.mimeType,
+          });
+          this.cleanupRecording();
+          resolve(recording);
+        },
+        { once: true }
+      );
+
+      recorder.addEventListener(
+        "error",
+        () => {
+          this.cleanupRecording();
+          reject(new Error("The browser failed to record the session audio."));
+        },
+        { once: true }
+      );
+
+      recorder.stop();
+    });
+  }
+
+  private cleanupRecording() {
+    this.recordingDestination?.disconnect();
+    this.recordingDestination?.stream
+      .getTracks()
+      .forEach((track) => track.stop());
+    this.recordingDestination = null;
+    this.mediaRecorder = null;
+    this.recordingChunks = [];
+  }
+
 
   async getAudioOutputDevices(): Promise<MediaDeviceInfo[]> {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) {

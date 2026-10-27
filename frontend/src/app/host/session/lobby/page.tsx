@@ -8,6 +8,8 @@ import { getSocket } from "@/services/socket";
 import {
   getBackendUrl,
   getFrontendUrl,
+  fetchLanIp,
+  fetchAvailableLanIps,
   KNOWN_LAN_IPS,
   getSelectedLanIp,
   setSelectedLanIp,
@@ -40,6 +42,7 @@ export default function LobbyPage() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [participants, setParticipants] = useState<LobbyParticipant[]>([]);
   const [currentIp, setCurrentIp] = useState("");
+  const [availableIps, setAvailableIps] = useState<string[]>([]);
   const [joinUrl, setJoinUrl] = useState("");
   const [isStarting, setIsStarting] = useState(false);
 
@@ -53,6 +56,18 @@ export default function LobbyPage() {
     const ip = getSelectedLanIp();
     setCurrentIp(ip);
     setJoinUrl(`${getFrontendUrl()}/join?room=${roomCode}`);
+
+    fetchAvailableLanIps().then((ips) => {
+      setAvailableIps(ips);
+      if (ips.length > 0 && (!ip || ip === "127.0.0.1" || ip === "localhost")) {
+        const primary = ips[0];
+        setSelectedLanIp(primary);
+        setCurrentIp(primary);
+        const protocol = window.location.protocol;
+        const port = window.location.port || "3000";
+        setJoinUrl(`${protocol}//${primary}:${port}/join?room=${roomCode}`);
+      }
+    });
 
     // Fetch session info
     fetch(`${getBackendUrl()}/api/sessions/${roomCode}`)
@@ -169,18 +184,18 @@ export default function LobbyPage() {
             <span className="text-gray-400 font-semibold">🌐 Host Network Interface IP:</span>
             <span className="font-mono text-green-400 font-bold">{currentIp}</span>
           </div>
-          <div className="flex gap-2">
-            {KNOWN_LAN_IPS.map((ip) => (
+          <div className="flex flex-wrap gap-2">
+            {(availableIps.length > 0 ? availableIps : [currentIp || "127.0.0.1"]).map((ip) => (
               <button
                 key={ip}
                 onClick={() => handleIpChange(ip)}
-                className={`flex-1 rounded-lg py-1.5 font-mono text-xs transition border ${
+                className={`flex-1 min-w-[120px] rounded-lg py-1.5 px-2 font-mono text-xs transition border ${
                   currentIp === ip
                     ? "bg-green-500/20 text-green-400 border-green-500/50 font-bold"
                     : "bg-gray-900 text-gray-400 border-gray-800 hover:border-gray-700"
                 }`}
               >
-                {ip} {ip === "10.95.210.231" ? "(Wi-Fi)" : "(Hotspot)"}
+                {ip}
               </button>
             ))}
           </div>

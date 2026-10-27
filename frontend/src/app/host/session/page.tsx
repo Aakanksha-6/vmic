@@ -13,7 +13,7 @@ import { WiFiWebRTCTransport } from "@/services/transports/wifi-webrtc-transport
 import { BluetoothTransport, BluetoothAudioDevice } from "@/services/transports/bluetooth-transport";
 import { ParticipantCard } from "@/components/participant/participant-card";
 import { SOCKET_EVENTS } from "@/lib/socket-events";
-import { getBackendUrl, getFrontendUrl } from "@/lib/config";
+import { getBackendUrl, getFrontendUrl, fetchLanIp } from "@/lib/config";
 
 export default function HostSessionPage() {
 
@@ -43,6 +43,9 @@ export default function HostSessionPage() {
   const speakingMode: SpeakingMode = "controlled";
   const [roomCode, setRoomCode] = useState<string>("");
   const [joinUrl, setJoinUrl] = useState<string>("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isSavingRecording, setIsSavingRecording] = useState(false);
+  const [recordingStatus, setRecordingStatus] = useState("");
 
   const [audioEngine] = useState(
     () =>
@@ -156,7 +159,22 @@ export default function HostSessionPage() {
   useEffect(() => {
     const code = localStorage.getItem("vmic-host-room") || "K7A2P9";
     setRoomCode(code);
-    setJoinUrl(`${getFrontendUrl()}/join?room=${code}`);
+
+    // Dynamically fetch current LAN IP so QR code is always correct on any network
+    fetchLanIp().then((lanIp) => {
+      const protocol = window.location.protocol;
+      const port = window.location.port || "3000";
+      const hostname = window.location.hostname;
+
+      let baseUrl: string;
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        baseUrl = `${protocol}//${lanIp}:${port}`;
+      } else {
+        baseUrl = `${protocol}//${hostname}:${port}`;
+      }
+
+      setJoinUrl(`${baseUrl}/join?room=${code}`);
+    });
 
     if (code) {
       fetch(`${getBackendUrl()}/api/sessions/${code}`)
@@ -511,6 +529,52 @@ export default function HostSessionPage() {
     await audioEngine.setOutputDevice(deviceId);
   };
 
+  const handleStartRecording = async () => {
+    try {
+      await audioEngine.startRecording();
+      setIsRecording(true);
+      setRecordingStatus("Recording session audio...");
+    } catch (error) {
+      console.error("[Recording] Failed to start:", error);
+      setRecordingStatus(
+        error instanceof Error ? error.message : "Failed to start recording."
+      );
+    }
+  };
+
+  const handleStopRecording = async () => {
+    setIsSavingRecording(true);
+    try {
+      const recording = await audioEngine.stopRecording();
+      const extension = recording.type.includes("mp4")
+        ? "mp4"
+        : recording.type.includes("ogg")
+          ? "ogg"
+          : "webm";
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const safeRoomCode = roomCode.replace(/[^a-zA-Z0-9_-]/g, "") || "session";
+      const url = URL.createObjectURL(recording);
+      const downloadLink = document.createElement("a");
+      downloadLink.href = url;
+      downloadLink.download = `vmic-${safeRoomCode}-${timestamp}.${extension}`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      downloadLink.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      setIsRecording(false);
+      setRecordingStatus("Recording downloaded to this computer.");
+    } catch (error) {
+      console.error("[Recording] Failed to stop:", error);
+      setIsRecording(false);
+      setRecordingStatus(
+        error instanceof Error ? error.message : "Failed to save recording."
+      );
+    } finally {
+      setIsSavingRecording(false);
+    }
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gray-950 px-6 py-12 text-white">
 
@@ -565,6 +629,45 @@ export default function HostSessionPage() {
           </p>
         )}
 
+      </div>
+
+      {/* Host-side session recording */}
+      <div className="mt-6 w-full max-w-xl rounded-xl border border-gray-800 bg-gray-900 p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-semibold text-red-400">Session Recording</h2>
+            <p className="mt-1 text-xs text-gray-400">
+              Records the host audio mix and downloads it to this computer when stopped.
+            </p>
+          </div>
+          <button
+            onClick={isRecording ? handleStopRecording : handleStartRecording}
+            disabled={isSavingRecording}
+            className={`shrink-0 rounded-lg px-4 py-2 text-sm font-semibold ${
+              isSavingRecording
+                ? "cursor-wait bg-gray-700 text-gray-300"
+                : isRecording
+                ? "bg-red-500 text-white hover:bg-red-400"
+                : "bg-gray-700 text-white hover:bg-gray-600"
+            }`}
+          >
+            {isSavingRecording
+              ? "SAVING..."
+              : isRecording
+                ? "STOP & DOWNLOAD"
+                : "START RECORDING"}
+          </button>
+        </div>
+        {recordingStatus && (
+          <p
+            role="status"
+            className={`mt-3 text-xs ${
+              isRecording ? "text-red-300" : "text-gray-400"
+            }`}
+          >
+            {recordingStatus}
+          </p>
+        )}
       </div>
 
       {/* Host Audio Output Speaker Router (Bluetooth / External Speaker) */}

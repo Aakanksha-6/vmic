@@ -1,20 +1,51 @@
 /**
  * VMIC Network Configuration
  *
- * Your laptop has multiple network interfaces:
- *   10.95.210.231    — Wi-Fi
- *   192.168.137.1    — Mobile Hotspot
- *   192.168.56.1     — VirtualBox (ignore)
+ * IPs are detected dynamically at runtime via /api/local-ip.
+ * No hardcoded IPs needed — works on any Wi-Fi or hotspot.
  */
 
-export const KNOWN_LAN_IPS = [
-  "10.95.210.231",  // Wi-Fi
-];
+export const KNOWN_LAN_IPS: string[] = [];
+
+let _cachedLanIp: string | null = null;
+
+/** Fetches all available LAN IPs from the server-side API. */
+export async function fetchAvailableLanIps(): Promise<string[]> {
+  try {
+    const res = await fetch("/api/local-ip");
+    const data = await res.json();
+    if (Array.isArray(data.all) && data.all.length > 0) {
+      return data.all;
+    }
+    return [data.primary || "127.0.0.1"];
+  } catch {
+    return ["127.0.0.1"];
+  }
+}
+
+/** Fetches the current machine's LAN IP from the server-side API. */
+export async function fetchLanIp(): Promise<string> {
+  if (_cachedLanIp) return _cachedLanIp;
+
+  try {
+    const res = await fetch("/api/local-ip");
+    const data = await res.json();
+    _cachedLanIp = data.primary as string;
+    return _cachedLanIp;
+  } catch {
+    return "127.0.0.1";
+  }
+}
+
+/** Clears the cached IP (call when network changes). */
+export function clearIpCache(): void {
+  _cachedLanIp = null;
+}
 
 export function getSelectedLanIp(): string {
   if (typeof window !== "undefined") {
     const saved = localStorage.getItem("vmic-selected-ip");
-    if (saved && KNOWN_LAN_IPS.includes(saved)) return saved;
+    if (saved) return saved;
 
     const hostname = window.location.hostname;
     if (hostname !== "localhost" && hostname !== "127.0.0.1") {
@@ -22,16 +53,13 @@ export function getSelectedLanIp(): string {
     }
   }
 
-  if (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_LAN_IP) {
-    return process.env.NEXT_PUBLIC_LAN_IP;
-  }
-
-  return KNOWN_LAN_IPS[0];
+  return _cachedLanIp ?? "127.0.0.1";
 }
 
 export function setSelectedLanIp(ip: string): void {
   if (typeof window !== "undefined") {
     localStorage.setItem("vmic-selected-ip", ip);
+    _cachedLanIp = ip;
   }
 }
 
@@ -60,3 +88,4 @@ export function getFrontendUrl(): string {
   }
   return `https://${getSelectedLanIp()}:3000`;
 }
+
